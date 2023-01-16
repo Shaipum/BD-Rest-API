@@ -214,4 +214,223 @@ create index django_session_expire_date_a5c62663 on django_session (expire_date)
 ```
 
 - RESTfull сервіс для управління даними
+  
+  
+## Корневий файл серверу
+
+```js
+const http = require('http');
+const app = require('./index.js');
+
+const port = 4000;
+
+const server = http.createServer(app);
+
+server.listen(port);
+```
+
+## Файл управління серверу
+
+```js
+const express = require('express')
+const dataFileRoutes = require('./routes/dataFileRoutes.js');
+
+const app = express();
+
+app.use(express.json());
+app.use('/datasetfile', dataFileRoutes);
+
+module.exports = app;
+```
+
+## Файл для підключення до бази даних
+
+```js
+const mysql = require('mysql');
+
+const db = mysql.createConnection({
+    port: 3306,
+    host: 'localhost',
+    user: 'root',
+    password: 'sh0664233519',
+    database: 'bd'
+});
+
+db.connect((err) => {
+    if (!err){
+        console.log('Connected to the database');
+    } else {
+        console.log(err);
+    }
+});
+
+module.exports = db;
+```
+
+## Кореневий файл контроллера
+
+```js
+const express = require('express');
+const { createDataFile, getDataFiles, getDataFile, deleteDataFile, updateDataFile } = require( '../controllers/dataFilesController.js');
+
+const router = express.Router();
+
+router.get('/', getDataFiles);
+
+router.post('/', createDataFile);
+
+router.get('/:id', getDataFile);
+
+router.delete('/:id', deleteDataFile);     
+
+router.patch('/:id', updateDataFile);
+
+module.exports = router;
+```
+
+## Файл контроллеру для управління запитами
+
+```js
+const db = require('../db_config/db_config.js');
+
+const createDataFile = (req, res) => {   
+    const { name, description, file_csv, provider, created_by_id, dataset_id, confirmed} = req.body;
+    const query = 'INSERT INTO datasetfile (name, description, file_csv, provider, created_by_id, dataset_id, confirmed, date_creation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    const date_creation = new Date();
+
+
+    if (!(name && description && file_csv && provider)) {
+        const message = 'Name, description, file_csv, provider, created_by_id and dataset_id are nesesery fields';
+        console.log(message);
+        return res
+            .status(404)
+            .json({message});
+    }
+
+
+    db.query('SELECT COUNT(*) AS namesCount FROM datasetfile WHERE name=?', [name], (err, result) => {
+        const count = result[0].namesCount;
+        if(count !== 0) {
+            const message = `Data file with name:[${name}] is already existing`;
+            console.log(message);
+            return res
+                .status(404)
+                .json({message});
+        }
+
+        db.query(query, [name, description, file_csv, provider, created_by_id, dataset_id, confirmed, date_creation], (err, result) => {
+            if(!err){
+                const message = `Data file with name:[${name}] was added`;
+                console.log(message);
+                return res
+                    .status(200)
+                    .json({message});
+            } else {
+                return res
+                    .status(500)
+                    .json(err);
+            }
+        });
+    });
+    
+};
+
+const getDataFiles = (req, res) => {
+
+    const query = 'SELECT *FROM datasetfile';
+    db.query(query, (err,result) => {
+        if(!err){
+            const message = 'Data files were succsesfuly received';
+            console.log(message);
+            return res
+                .status(200)
+                .json({message, result});
+        } else {
+            return res
+                .status(500)
+                .json(err);
+        }
+    });
+};
+
+const getDataFile = (req, res) => {
+    const id = req.params.id;
+    const query = 'SELECT *FROM datasetfile WHERE id=?';
+
+    db.query(query, [id], (err,result) => {
+        if (result.length == 0) {
+            const message = `No data file with id:[${id}]`;
+            console.log(message);
+            return res
+                .status(404)
+                .json({message});
+        }
+        if(!err){
+            const message = `Data file with id:[${id}] was recieved`;
+            console.log(message);
+            return res
+                .status(200)
+                .json({message, result});
+        } else {
+            return res
+                .status(500)
+                .json(err);
+        }
+    });
+};
+
+const deleteDataFile = (req, res) => { 
+    const id = req.params.id;
+    const query = 'DELETE FROM datasetfile WHERE id=?';
+
+    db.query(query, [id], (err, result) => {
+        if(result.affectedRows == 0) {
+            const message = `No data file with id:[${id}]`;
+            console.log(message);
+            return res
+                .status(404)
+                .json({message});
+        }
+        if(!err){
+            const message = `Data file with id:[${id}] was succsessfuly deleted`;
+            console.log(message);
+            return res
+                .status(200)
+                .json({message});
+        } else {
+            return res
+                .status(500)
+                .json(err);
+        }
+    });
+};
+
+const updateDataFile =  (req,res) => {
+    const id = req.params.id; 
+    const { name, description, file_csv, provider, created_by_id, dataset_id, confirmed } = req.body;
+    const query = 'UPDATE datasetfile SET name=?, description=?, file_csv=?, provider=?, created_by_id=?, dataset_id=?, confirmed=? where id=?';
+
+    db.query(query, [name, description, file_csv, provider, confirmed, created_by_id, dataset_id, id],(err, result) => {
+        if(result.affectedRows == 0) {
+            const message = `No data file with id:[${id}]`;
+            return res
+                .status(404)
+                .json({message});
+        }
+        if (!err) {
+            const message = `Data file with id:[${id}] succsessfuly updated`;
+            console.log(message);
+            return res
+                .status(200)
+                .json({message});
+        } else {
+            return res
+                .status(500)
+                .json(err);
+        }
+    });
+};
+
+module.exports = {createDataFile, getDataFiles, getDataFile, deleteDataFile, updateDataFile};
+```
 
